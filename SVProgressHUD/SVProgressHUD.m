@@ -32,6 +32,7 @@ static UIImage *SVProgressHUDErrorImage;
 static const CGFloat SVProgressHUDRingRadius = 18;
 static const CGFloat SVProgressHUDRingNoTextRadius = 24;
 static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
+static const CGFloat kSamAnimationDuration = .25;
 
 @interface SVProgressHUD ()
 
@@ -53,6 +54,9 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 @property (nonatomic, readonly) CGFloat visibleKeyboardHeight;
 @property (nonatomic, assign) UIOffset offsetFromCenter;
 
+@property (nonatomic, strong) UIImageView *samsHead;
+@property (nonatomic, strong) UIImageView *samsJaw;
+@property (nonatomic, strong) UIView *samsDotsContainer;
 
 - (void)showProgress:(float)progress
               status:(NSString*)string
@@ -291,7 +295,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     }
 	
 	self.hudView.bounds = CGRectMake(0, 0, hudWidth, hudHeight);
-
+    
     if(string)
         self.imageView.center = CGPointMake(CGRectGetWidth(self.hudView.bounds)/2, 36);
 	else
@@ -492,6 +496,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         self.imageView.image = nil;
         self.imageView.hidden = NO;
         [self.indefiniteAnimatedLayer removeFromSuperlayer];
+        [self removeSam];
 
         self.ringLayer.strokeEnd = progress;
         
@@ -502,6 +507,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         self.activityCount++;
         [self cancelRingLayerAnimation];
         [self.hudView.layer addSublayer:self.indefiniteAnimatedLayer];
+        [self addSam];
     }
     
     if(self.maskType != SVProgressHUDMaskTypeNone) {
@@ -571,6 +577,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     self.stringLabel.text = string;
     [self updatePosition];
     [self.indefiniteAnimatedLayer removeFromSuperlayer];
+    [self removeSam];
     
     if(self.maskType != SVProgressHUDMaskTypeNone) {
         self.accessibilityLabel = string;
@@ -619,6 +626,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
                              
                              [_indefiniteAnimatedLayer removeFromSuperlayer];
                              _indefiniteAnimatedLayer = nil;
+                             [self removeSam];
 
                              UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, nil);
 
@@ -641,7 +649,112 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 #pragma mark - Ring progress animation
 
+- (void)addSam {
+    [self.hudView addSubview:self.samsDotsContainer];
+    [self.hudView addSubview:self.samsJaw];
+    [self.hudView addSubview:self.samsHead];
+}
+
+- (void)removeSam {
+    [self.samsDotsContainer removeFromSuperview];
+    self.samsDotsContainer = nil;
+    [self.samsJaw removeFromSuperview];
+    self.samsJaw = nil;
+    [self.samsHead removeFromSuperview];
+    self.samsHead = nil;
+}
+
+- (UIImageView *)samsHead {
+    if (!_samsHead) {
+        _samsHead = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"SVProgressHUD.bundle/sv_top"]];
+        _samsHead.contentMode = UIViewContentModeScaleAspectFit;
+        _samsHead.layer.anchorPoint = CGPointMake(0.25, .9);
+        CGRect frame = _samsHead.frame;
+        frame.size.width = 50;
+        frame.size.height = 54;
+        frame.origin.x = (self.hudView.frame.size.width - frame.size.width) / 2;
+        frame.origin.y = 13;
+        _samsHead.frame = frame;
+
+        
+        NSTimeInterval animationDuration = kSamAnimationDuration;
+        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+        animation.fromValue = 0;
+        animation.toValue = [NSNumber numberWithFloat:- M_PI_4 / 8];
+        animation.duration = animationDuration;
+        animation.removedOnCompletion = NO;
+        animation.repeatCount = INFINITY;
+        animation.fillMode = kCAFillModeForwards;
+        animation.autoreverses = YES;
+
+        [_samsHead.layer addAnimation:animation forKey:@"rotate"];
+    }
+    return _samsHead;
+}
+
+- (UIImageView *)samsJaw {
+    if (!_samsJaw) {
+        _samsJaw = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"SVProgressHUD.bundle/sv_jaw"]];
+        _samsJaw.contentMode = UIViewContentModeScaleAspectFit;
+        
+        _samsJaw.layer.anchorPoint = CGPointMake(0.25, 0.1);
+        CGRect frame = _samsJaw.frame;
+        frame.size.width = 46;
+        frame.size.height = 28;
+        frame.origin.x = (self.hudView.frame.size.width - frame.size.width) / 2 + 1;
+        frame.origin.y = 52;
+        _samsJaw.frame = frame;
+        
+        NSTimeInterval animationDuration = kSamAnimationDuration;
+        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+        animation.fromValue = 0;
+        animation.toValue = [NSNumber numberWithFloat:M_PI_4 / 4];
+        animation.duration = animationDuration;
+        animation.removedOnCompletion = NO;
+        animation.repeatCount = INFINITY;
+        animation.fillMode = kCAFillModeForwards;
+        animation.autoreverses = YES;
+        
+        [_samsJaw.layer addAnimation:animation forKey:@"rotate"];
+    }
+    return _samsJaw;
+}
+
+- (UIView *)samsDotsContainer {
+    if (!_samsDotsContainer) {
+        _samsDotsContainer = [[UIView alloc] initWithFrame:CGRectMake(self.hudView.frame.size.width / 2, 59, 50, 10)];
+        _samsDotsContainer.clipsToBounds = YES;
+        UIView *innerDotsContainer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, _samsDotsContainer.frame.size.width, _samsDotsContainer.frame.size.height)];
+        innerDotsContainer.backgroundColor = [UIColor clearColor];
+        
+        NSInteger numberOfDots = 10;
+        CGFloat padding = 5;
+        CGFloat dotSize = 6;
+        for (NSInteger i = 0; i < numberOfDots; i++) {
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake((padding + dotSize) * i + padding, 2, dotSize, dotSize)];
+            dot.layer.cornerRadius = dotSize/2;
+            dot.backgroundColor = [UIColor blackColor];
+            [innerDotsContainer addSubview:dot];
+        }
+        
+        NSTimeInterval animationDuration = kSamAnimationDuration * 10;
+        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.translation.x"];
+        animation.fromValue = [NSNumber numberWithFloat:0.0];
+        animation.toValue = [NSNumber numberWithFloat:-55.0];
+        animation.duration = animationDuration;
+        animation.removedOnCompletion = NO;
+        animation.repeatCount = INFINITY;
+        animation.fillMode = kCAFillModeForwards;
+        animation.autoreverses = NO;
+        [innerDotsContainer.layer addAnimation:animation forKey:@"moveBackwards"];
+
+        [_samsDotsContainer addSubview:innerDotsContainer];
+    }
+    return _samsDotsContainer;
+}
+
 - (CAShapeLayer*)indefiniteAnimatedLayer {
+    return nil;
     if(!_indefiniteAnimatedLayer) {
         CGPoint center = CGPointMake(CGRectGetWidth(_hudView.frame)/2, CGRectGetHeight(_hudView.frame)/2);
         CGFloat radius = self.stringLabel.text ? SVProgressHUDRingRadius : SVProgressHUDRingNoTextRadius;
@@ -705,6 +818,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 }
 
 - (CAShapeLayer *)ringLayer {
+    return nil;
     if(!_ringLayer) {
         CGPoint center = CGPointMake(CGRectGetWidth(_hudView.frame)/2, CGRectGetHeight(_hudView.frame)/2);
         _ringLayer = [self createRingLayerWithCenter:center
@@ -717,6 +831,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 }
 
 - (CAShapeLayer *)backgroundRingLayer {
+    return nil;
     if(!_backgroundRingLayer) {
         CGPoint center = CGPointMake(CGRectGetWidth(_hudView.frame)/2, CGRectGetHeight(_hudView.frame)/2);
         _backgroundRingLayer = [self createRingLayerWithCenter:center
@@ -749,7 +864,6 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 }
 
 - (CAShapeLayer *)createRingLayerWithCenter:(CGPoint)center radius:(CGFloat)radius lineWidth:(CGFloat)lineWidth color:(UIColor *)color {
-    
     UIBezierPath* smoothedPath = [UIBezierPath bezierPathWithArcCenter:CGPointMake(radius, radius) radius:radius startAngle:-M_PI_2 endAngle:(M_PI + M_PI_2) clockwise:YES];
     
     CAShapeLayer *slice = [CAShapeLayer layer];
